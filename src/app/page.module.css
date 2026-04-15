@@ -1,0 +1,22 @@
+.page {
+  width: min(100%, 960px);
+  margin: 0 auto;
+  padding: 40px 20px 56px;
+}
+
+.hero {
+  margin-bottom: 24px;
+}
+
+.title {
+  margin-bottom: 8px;
+  font-size: clamp(32px, 6vw, 44px);
+  line-height: 1.1;
+}
+
+.description {
+  max-width: 560px;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.5;
+}

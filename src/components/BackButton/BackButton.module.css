@@ -1,0 +1,22 @@
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 10px 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-weight: 700;
+  background: rgba(255, 253, 248, 0.9);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.link:hover {
+  transform: translateX(-2px);
+  border-color: var(--accent);
+  background: #fff;
+}
