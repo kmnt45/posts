@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation';
+import { type FC } from 'react';
 
-import Pagination from '@/components/Pagination/Pagination';
-import PostsList from '@/components/PostsList/PostsList';
+import { Pagination } from '@/components/Pagination';
+import { PostsList } from '@/components/PostsList';
 import { getPosts } from '@/lib/api';
 import { getPaginationState, parsePageParam } from '@/lib/pagination';
+import { buildPostsPageHref } from '@/lib/routes';
 
 import styles from './page.module.css';
 
@@ -11,14 +13,19 @@ type HomePageProps = {
   searchParams?: Promise<{ page?: string }>;
 };
 
-export default async function HomePage({ searchParams }: HomePageProps) {
+const HomePage: FC<HomePageProps> = async ({ searchParams }) => {
   const resolvedSearchParams = await searchParams;
-  const currentPage = parsePageParam(resolvedSearchParams?.page);
-  const { posts, totalPages } = await getPosts(currentPage);
-  const pagination = getPaginationState(currentPage, totalPages);
+  const requestedPage = parsePageParam(resolvedSearchParams?.page);
 
-  if (pagination.currentPage !== currentPage) {
-    redirect(pagination.currentPage === 1 ? '/' : `/?page=${pagination.currentPage}`);
+  if (resolvedSearchParams?.page !== undefined && requestedPage === 1) {
+    redirect('/');
+  }
+
+  const { posts, totalPages } = await getPosts(requestedPage);
+  const pagination = getPaginationState(requestedPage, totalPages);
+
+  if (pagination.currentPage !== requestedPage) {
+    redirect(buildPostsPageHref(pagination.currentPage));
   }
 
   return (
@@ -27,8 +34,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <h1 className={styles.title}>Посты</h1>
       </section>
 
-      <PostsList posts={posts} currentPage={currentPage} />
+      <PostsList posts={posts} currentPage={pagination.currentPage} />
       <Pagination pagination={pagination} basePath='/' />
     </main>
   );
-}
+};
+
+export default HomePage;

@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
+import { type FC } from 'react';
 
-import BackButton from '@/components/BackButton/BackButton';
+import { BackButton } from '@/components/BackButton';
 import { getPost } from '@/lib/api';
 import { parsePageParam } from '@/lib/pagination';
+import { buildPostsPageHref } from '@/lib/routes';
 import type { Post } from '@/types/post';
 
 import styles from './page.module.css';
@@ -12,7 +14,7 @@ type PostPageProps = {
   searchParams?: Promise<{ page?: string }>;
 };
 
-export default async function PostPage({ params, searchParams }: PostPageProps) {
+const PostPage: FC<PostPageProps> = async ({ params, searchParams }) => {
   const [{ postId }, resolvedSearchParams] = await Promise.all([params, searchParams]);
   const page = parsePageParam(resolvedSearchParams?.page);
   const numericPostId = Number(postId);
@@ -31,7 +33,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
 
   return (
     <main className={styles.page}>
-      <BackButton href={`/?page=${page}`} />
+      <BackButton href={buildPostsPageHref(page)} />
 
       <article className={styles.article}>
         <p className={styles.meta}>Пост #{post.id}</p>
@@ -40,4 +42,6 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
       </article>
     </main>
   );
-}
+};
+
+export default PostPage;

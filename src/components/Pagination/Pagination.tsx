@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { type FC } from 'react';
 
 import type { PaginationState } from '@/lib/pagination';
+import { buildPostsPageHref } from '@/lib/routes';
 
 import styles from './Pagination.module.css';
 
@@ -9,13 +11,9 @@ type PaginationProps = {
   basePath: string;
 };
 
-function buildHref(basePath: string, page: number) {
-  return page === 1 ? basePath : `${basePath}?page=${page}`;
-}
-
-export default function Pagination({ pagination, basePath }: PaginationProps) {
-  const previousHref = buildHref(basePath, pagination.previousPage);
-  const nextHref = buildHref(basePath, pagination.nextPage);
+export const Pagination: FC<PaginationProps> = ({ pagination, basePath }) => {
+  const previousHref = basePath === '/' ? buildPostsPageHref(pagination.previousPage) : basePath;
+  const nextHref = basePath === '/' ? buildPostsPageHref(pagination.nextPage) : basePath;
 
   return (
     <nav className={styles.nav} aria-label='Pagination'>
@@ -42,4 +40,4 @@ export default function Pagination({ pagination, basePath }: PaginationProps) {
       </Link>
     </nav>
   );
-}
+};

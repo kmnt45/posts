@@ -7,7 +7,7 @@ export type PaginationState = {
   hasNextPage: boolean;
 };
 
-export function parsePageParam(pageParam?: string) {
+export const parsePageParam = (pageParam?: string) => {
   const page = Number(pageParam);
 
   if (!Number.isInteger(page) || page < 1) {
@@ -15,9 +15,9 @@ export function parsePageParam(pageParam?: string) {
   }
 
   return page;
-}
+};
 
-export function getPaginationState(currentPage: number, totalPages: number): PaginationState {
+export const getPaginationState = (currentPage: number, totalPages: number): PaginationState => {
   const safeTotalPages = Math.max(1, totalPages);
   // Если пользователь вручную передал слишком большой номер страницы,
   // приводим его к последней доступной.
@@ -31,4 +31,4 @@ export function getPaginationState(currentPage: number, totalPages: number): Pag
     hasPreviousPage: safeCurrentPage > 1,
     hasNextPage: safeCurrentPage < safeTotalPages,
   };
-}
+};

@@ -1,4 +1,6 @@
-import PostCard from '@/components/PostCard/PostCard';
+import { type FC } from 'react';
+
+import { PostCard } from '@/components/PostCard/PostCard';
 import type { Post } from '@/types/post';
 
 import styles from './PostsList.module.css';
@@ -8,7 +10,7 @@ type PostsListProps = {
   currentPage: number;
 };
 
-export default function PostsList({ posts, currentPage }: PostsListProps) {
+export const PostsList: FC<PostsListProps> = ({ posts, currentPage }) => {
   return (
     <section className={styles.list}>
       {posts.map((post) => (
@@ -16,4 +18,4 @@ export default function PostsList({ posts, currentPage }: PostsListProps) {
       ))}
     </section>
   );
-}
+};

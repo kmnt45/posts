@@ -1,8 +1,8 @@
 import type { PaginatedPosts, Post } from '@/types/post';
 
 const POSTS_URL = 'https://jsonplaceholder.typicode.com/posts';
-const POSTS_PER_PAGE = 10;
 const FALLBACK_POSTS_URL = 'https://dummyjson.com/posts';
+export const POSTS_PER_PAGE = 10;
 
 type JsonPlaceholderPost = Post;
 
@@ -19,81 +19,193 @@ type DummyJsonPostsResponse = {
   limit: number;
 };
 
-function getTotalPages(totalPosts: number) {
+class ApiError extends Error {
+  public readonly code: 'invalid_response' | 'not_found' | 'unavailable';
+
+  public constructor(code: 'invalid_response' | 'not_found' | 'unavailable', message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+  }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null;
+};
+
+const isPost = (value: unknown): value is Post => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'number' &&
+    Number.isInteger(value.id) &&
+    typeof value.title === 'string' &&
+    typeof value.body === 'string'
+  );
+};
+
+const isDummyJsonPostsResponse = (value: unknown): value is DummyJsonPostsResponse => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    Array.isArray(value.posts) &&
+    value.posts.every(isPost) &&
+    typeof value.total === 'number' &&
+    typeof value.skip === 'number' &&
+    typeof value.limit === 'number'
+  );
+};
+
+const getTotalPages = (totalPosts: number) => {
   return Math.max(1, Math.ceil(totalPosts / POSTS_PER_PAGE));
-}
+};
 
-async function fetchJsonPlaceholderPosts(page: number): Promise<PaginatedPosts> {
-  const response = await fetch(`${POSTS_URL}?_limit=${POSTS_PER_PAGE}&_page=${page}`, {
-    next: { revalidate: 60 },
-  });
+const getTotalPostsFromHeader = (headerValue: string | null): number => {
+  const totalPosts = Number(headerValue);
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch posts from JSONPlaceholder');
+  if (!Number.isInteger(totalPosts) || totalPosts < 0) {
+    throw new ApiError('invalid_response', 'Invalid x-total-count header');
   }
 
-  const totalPostsHeader = response.headers.get('x-total-count');
-  const totalPosts = Number(totalPostsHeader ?? 0);
-  const posts = (await response.json()) as JsonPlaceholderPost[];
+  return totalPosts;
+};
 
-  return {
-    posts,
-    totalPosts,
-    totalPages: getTotalPages(totalPosts),
-  };
-}
-
-async function fetchDummyJsonPosts(page: number): Promise<PaginatedPosts> {
-  const skip = (page - 1) * POSTS_PER_PAGE;
-  const response = await fetch(`${FALLBACK_POSTS_URL}?limit=${POSTS_PER_PAGE}&skip=${skip}`, {
-    next: { revalidate: 60 },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch posts from DummyJSON');
+const mapFetchError = (error: unknown, fallbackMessage: string): never => {
+  if (error instanceof ApiError) {
+    throw error;
   }
 
-  const data = (await response.json()) as DummyJsonPostsResponse;
+  throw new ApiError('unavailable', fallbackMessage);
+};
 
-  return {
-    posts: data.posts.map(({ id, title, body }) => ({ id, title, body })),
-    totalPosts: data.total,
-    totalPages: getTotalPages(data.total),
-  };
-}
+const fetchJsonPlaceholderPosts = async (page: number): Promise<PaginatedPosts> => {
+  try {
+    const response = await fetch(`${POSTS_URL}?_limit=${POSTS_PER_PAGE}&_page=${page}`, {
+      next: { revalidate: 60 },
+    });
 
-export async function getPosts(page: number): Promise<PaginatedPosts> {
-  // Основной источник данных должен соответствовать условиям задания,
-  // fallback нужен только чтобы приложение оставалось рабочим при недоступности API.
+    if (!response.ok) {
+      throw new ApiError('unavailable', 'Failed to fetch posts from JSONPlaceholder');
+    }
+
+    const totalPosts = getTotalPostsFromHeader(response.headers.get('x-total-count'));
+    const payload: unknown = await response.json();
+
+    if (!Array.isArray(payload) || !payload.every(isPost)) {
+      throw new ApiError('invalid_response', 'Invalid posts response payload');
+    }
+
+    const posts: JsonPlaceholderPost[] = payload;
+
+    return {
+      posts,
+      totalPosts,
+      totalPages: getTotalPages(totalPosts),
+    };
+  } catch (error: unknown) {
+    return mapFetchError(error, 'Failed to fetch posts from JSONPlaceholder');
+  }
+};
+
+const fetchDummyJsonPosts = async (page: number): Promise<PaginatedPosts> => {
+  try {
+    const skip = (page - 1) * POSTS_PER_PAGE;
+    const response = await fetch(`${FALLBACK_POSTS_URL}?limit=${POSTS_PER_PAGE}&skip=${skip}`, {
+      next: { revalidate: 60 },
+    });
+
+    if (!response.ok) {
+      throw new ApiError('unavailable', 'Failed to fetch posts from DummyJSON');
+    }
+
+    const payload: unknown = await response.json();
+
+    if (!isDummyJsonPostsResponse(payload)) {
+      throw new ApiError('invalid_response', 'Invalid DummyJSON posts response payload');
+    }
+
+    return {
+      posts: payload.posts.map(({ id, title, body }) => ({ id, title, body })),
+      totalPosts: payload.total,
+      totalPages: getTotalPages(payload.total),
+    };
+  } catch (error: unknown) {
+    return mapFetchError(error, 'Failed to fetch posts from DummyJSON');
+  }
+};
+
+export const getPosts = async (page: number): Promise<PaginatedPosts> => {
   try {
     return await fetchJsonPlaceholderPosts(page);
-  } catch {
+  } catch (error: unknown) {
+    if (!(error instanceof ApiError) || error.code !== 'unavailable') {
+      throw error;
+    }
+
     return fetchDummyJsonPosts(page);
   }
-}
+};
 
-export async function getPost(postId: string): Promise<Post> {
-  const response = await fetch(`${POSTS_URL}/${postId}`, {
-    cache: 'force-cache',
-  });
+export const getPost = async (postId: string): Promise<Post> => {
+  try {
+    const response = await fetch(`${POSTS_URL}/${postId}`, {
+      cache: 'force-cache',
+    });
 
-  if (response.ok) {
-    return (await response.json()) as JsonPlaceholderPost;
+    if (response.status === 404) {
+      throw new ApiError('not_found', 'Post not found');
+    }
+
+    if (!response.ok) {
+      throw new ApiError('unavailable', 'Failed to fetch post from JSONPlaceholder');
+    }
+
+    const payload: unknown = await response.json();
+
+    if (!isPost(payload)) {
+      throw new ApiError('invalid_response', 'Invalid post response payload');
+    }
+
+    return payload;
+  } catch (error: unknown) {
+    if (error instanceof ApiError && error.code !== 'unavailable') {
+      throw error;
+    }
+
+    if (!(error instanceof ApiError)) {
+      throw new ApiError('unavailable', 'Failed to fetch post from JSONPlaceholder');
+    }
   }
 
-  const fallbackResponse = await fetch(`${FALLBACK_POSTS_URL}/${postId}`, {
-    cache: 'force-cache',
-  });
+  try {
+    const fallbackResponse = await fetch(`${FALLBACK_POSTS_URL}/${postId}`, {
+      cache: 'force-cache',
+    });
 
-  if (!fallbackResponse.ok) {
-    throw new Error('Failed to fetch post');
+    if (fallbackResponse.status === 404) {
+      throw new ApiError('not_found', 'Post not found');
+    }
+
+    if (!fallbackResponse.ok) {
+      throw new ApiError('unavailable', 'Failed to fetch post from DummyJSON');
+    }
+
+    const payload: unknown = await fallbackResponse.json();
+
+    if (!isPost(payload)) {
+      throw new ApiError('invalid_response', 'Invalid DummyJSON post response payload');
+    }
+
+    return payload;
+  } catch (error: unknown) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError('unavailable', 'Failed to fetch post from DummyJSON');
   }
-
-  const fallbackPost = (await fallbackResponse.json()) as DummyJsonPost;
-
-  return {
-    id: fallbackPost.id,
-    title: fallbackPost.title,
-    body: fallbackPost.body,
-  };
-}
+};
